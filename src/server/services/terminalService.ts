@@ -1,32 +1,52 @@
-import {randomUUID} from 'node:crypto';
+import fs from 'node:fs/promises';
 import path from 'node:path';
-import type {ParsedTerminalCommand,TerminalCommandName,TerminalJob,TerminalResult,TerminalJobState} from '../../shared/types/domain.js';
+import {randomUUID} from 'node:crypto';
+import type {TerminalJob,TerminalJobState,TerminalResult} from '../../shared/types/domain.js';
+import {terminalCommandNames} from '../../shared/types/domain.js';
 import {FileService} from './fileService.js';
 
-const names:TerminalCommandName[]=['help','pwd','cd','ls','tree','cat','head','tail','mkdir','rmdir','touch','write','append','cp','mv','rm','find','stat','date','clear'];
-const rejected=(message:string)=>Object.assign(new Error(message),{status:400,code:'TERMINAL_COMMAND_REJECTED'});
+interface RunningJob { job:TerminalJob }
+const commandError=(message:string)=>Object.assign(new Error(message),{status:400,code:'TERMINAL_COMMAND_REJECTED'});
+const usage=(name:string,value:string)=>commandError(`${name}: usage: ${value}`);
+
 export class TerminalService {
- private jobs=new Map<string,TerminalJob>();
- constructor(private files=new FileService(),_legacyScripts:Record<string,unknown>={},private timeoutMs=5000,private outputLimit=64*1024){}
- list(ownerId?:string){return [...this.jobs.values()].filter(job=>!ownerId||job.ownerId===ownerId);}
- parse(command:string):ParsedTerminalCommand{const tokens=command.match(/(?:[^\s"']+|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')+/g)?.map(value=>{const quote=value[0];return quote==='"'||quote==="'"?value.slice(1,-1).replace(/\\([\\"'])/g,'$1'):value;})??[];const name=tokens.shift();if(!name)throw rejected('Command is required');if(!names.includes(name as TerminalCommandName))throw rejected(`Command not allowed: ${name}`);return{name:name as TerminalCommandName,args:tokens};}
- private target(cwd:string,input=''){const candidate=path.posix.normalize(path.posix.join(cwd,input));if(candidate==='..'||candidate.startsWith('../'))throw rejected('Path escapes OS storage');const value=candidate==='.'?'':candidate;this.files.resolve(value);return value;}
- private exact(args:string[],min:number,max=min){if(args.length<min||args.length>max)throw rejected(`Expected ${min===max?min:`${min}-${max}`} argument(s)`);}
- async execute(ownerId:string,input:{command:string;cwd:string}):Promise<TerminalResult>{const started=Date.now(),parsed=this.parse(input.command),cwd=this.target('',input.cwd||''),id=randomUUID(),job:TerminalJob={id,ownerId,command:input.command,cwd,state:{kind:'running'},startedAt:new Date().toISOString()};this.jobs.set(id,job);try{const value=await Promise.race([this.run(parsed,cwd),new Promise<never>((_,reject)=>setTimeout(()=>reject(Object.assign(new Error('Command timed out'),{timedOut:true})),this.timeoutMs))]);if(Buffer.byteLength(value.stdout)>this.outputLimit)throw rejected('Command output limit exceeded');return this.finish(job,{kind:'completed',exitCode:0},value.stdout,'',0,value.cwd,started);}catch(error){const timedOut=Boolean((error as {timedOut?:boolean}).timedOut),state:TerminalJobState=timedOut?{kind:'timed-out'}:{kind:'failed',exitCode:null,reason:(error as Error).message};this.finish(job,state,'',(error as Error).message,null,cwd,started);if(timedOut)return this.result(job,'',(error as Error).message,null,cwd,started);throw error;}}
- private async run({name,args}:ParsedTerminalCommand,cwd:string):Promise<{stdout:string;cwd:string}>{let stdout='',next=cwd;const at=(value='')=>this.target(cwd,value);switch(name){
-  case'help':this.exact(args,0);stdout=names.join('\n');break;case'pwd':this.exact(args,0);stdout=`/${cwd}`;break;case'date':this.exact(args,0);stdout=new Date().toISOString();break;case'clear':this.exact(args,0);break;
-  case'cd':this.exact(args,0,1);{const target=at(args[0]);if(!(await this.files.stat(target)).isDirectory)throw rejected('Not a directory');next=target;}break;
-  case'ls':this.exact(args,0,1);stdout=(await this.files.list(at(args[0]))).map(e=>`${e.isDirectory?'d':'-'} ${e.name}`).join('\n');break;case'tree':this.exact(args,0,1);stdout=await this.tree(at(args[0]));break;
-  case'cat':this.exact(args,1);stdout=await this.files.read(at(args[0]));break;case'head':case'tail':this.exact(args,1,2);{const lines=(await this.files.read(at(args[0]))).split('\n'),count=this.count(args[1]);stdout=(name==='head'?lines.slice(0,count):lines.slice(-count)).join('\n');}break;
-  case'mkdir':this.exact(args,1);await this.files.mkdir(at(args[0]));break;case'rmdir':this.exact(args,1);{const target=at(args[0]);if(!(await this.files.stat(target)).isDirectory)throw rejected('Not a directory');if((await this.files.list(target)).length)throw rejected('Directory is not empty');await this.files.delete(target);}break;
-  case'touch':this.exact(args,1);await this.files.append(at(args[0]),'');break;case'write':case'append':this.exact(args,2);await this.files[name](at(args[0]),args[1]);break;case'cp':this.exact(args,2);await this.files.copy(at(args[0]),at(args[1]));break;case'mv':this.exact(args,2);await this.files.rename(at(args[0]),at(args[1]));break;
-  case'rm':this.exact(args,1);{const target=at(args[0]);if((await this.files.stat(target)).isDirectory)throw rejected('rm only removes files; use rmdir for empty directories');await this.files.delete(target);}break;case'find':this.exact(args,1,2);stdout=(await this.find(at(args[1]),args[0].toLowerCase())).join('\n');break;
-  case'stat':this.exact(args,1);{const e=await this.files.stat(at(args[0]));stdout=`name: ${e.name}\ntype: ${e.isDirectory?'directory':'file'}\nsize: ${e.size}\nmodified: ${e.modifiedAt}`;}break;
- }return{stdout,cwd:next};}
- private count(value?:string){if(value===undefined)return 10;const count=Number(value);if(!Number.isInteger(count)||count<1||count>1000)throw rejected('Line count must be an integer from 1 to 1000');return count;}
- private async tree(directory:string,prefix=''):Promise<string>{const out:string[]=[],rows=await this.files.list(directory);for(const [index,row]of rows.entries()){const last=index===rows.length-1;out.push(`${prefix}${last?'└─':'├─'} ${row.name}`);if(row.isDirectory)out.push(await this.tree(row.path,`${prefix}${last?'   ':'│  '}`));}return out.filter(Boolean).join('\n');}
- private async find(directory:string,query:string):Promise<string[]>{const out:string[]=[];for(const row of await this.files.list(directory)){if(row.name.toLowerCase().includes(query))out.push(row.path);if(row.isDirectory)out.push(...await this.find(row.path,query));}return out;}
- private result(job:TerminalJob,stdout:string,stderr:string,exitCode:number|null,cwd:string,started:number):TerminalResult{return{jobId:job.id,stdout,stderr,exitCode,duration:Date.now()-started,cwd,state:job.state};}
- private finish(job:TerminalJob,state:TerminalJobState,stdout:string,stderr:string,exitCode:number|null,cwd:string,started:number){job.state=state;job.finishedAt=new Date().toISOString();return this.result(job,stdout,stderr,exitCode,cwd,started);}
- terminate(ownerId:string,id:string){const job=this.jobs.get(id);if(!job)throw Object.assign(new Error('Terminal job not found'),{status:404,code:'NOT_FOUND'});if(job.ownerId!==ownerId)throw Object.assign(new Error('Terminal job belongs to another session'),{status:403,code:'FORBIDDEN'});if(job.state.kind!=='running')throw rejected('Terminal job is not running');job.state={kind:'cancelled'};job.finishedAt=new Date().toISOString();return job;}
+ private jobs=new Map<string,RunningJob>();
+ constructor(private files=new FileService(),_scripts:Record<string,never>={},private timeoutMs=5000,private outputLimit=64*1024){}
+ list(ownerId?:string){return [...this.jobs.values()].map(item=>item.job).filter(job=>!ownerId||job.ownerId===ownerId);}
+ private tokenize(command:string){const tokens:string[]=[];let value='',quote='';for(let index=0;index<command.length;index++){const char=command[index];if(quote){if(char===quote)quote='';else if(char==='\\'&&index+1<command.length)value+=command[++index];else value+=char;}else if(char==='"'||char==="'")quote=char;else if(/\s/.test(char)){if(value){tokens.push(value);value='';}}else if(char==='\\'&&index+1<command.length)value+=command[++index];else value+=char;}if(quote)throw commandError('Unterminated quote');if(value)tokens.push(value);return tokens;}
+ private target(cwd:string,input=''){if(path.posix.isAbsolute(input)||path.win32.isAbsolute(input))throw commandError('Absolute paths are not allowed');const candidate=path.posix.normalize(path.posix.join(cwd,input));if(candidate==='..'||candidate.startsWith('../'))throw commandError('Path escapes OS storage');const joined=candidate==='.'?'':candidate;this.files.resolve(joined);return joined;}
+ private requireCount(name:string,tokens:string[],min:number,max=min){if(tokens.length<min||tokens.length>max)throw usage(name,`${min===max?min:`${min}-${max}`} argument${max===1?'':'s'}`);}
+ private bounded(value:string){if(Buffer.byteLength(value)>this.outputLimit)throw commandError('Command output limit exceeded');return value;}
+ private async lines(file:string,count:number,tail=false){if(!Number.isInteger(count)||count<0||count>10000)throw commandError('Line count must be between 0 and 10000');const rows=(await this.files.read(file)).split(/\r?\n/);return(tail?rows.slice(-count):rows.slice(0,count)).join('\n');}
+ async execute(ownerId:string,input:{command:string;cwd:string}):Promise<TerminalResult>{
+  if(!ownerId||typeof input.command!=='string'||typeof input.cwd!=='string'||input.command.length>4096)throw commandError('Invalid terminal request');
+  const started=Date.now(),tokens=this.tokenize(input.command),name=tokens.shift();if(!name)throw commandError('Command is required');if(!(terminalCommandNames as readonly string[]).includes(name))throw commandError(`Command not allowed: ${name}`);
+  const cwd=this.target('',input.cwd),job:TerminalJob={id:randomUUID(),ownerId,command:input.command,cwd,state:{kind:'running'},startedAt:new Date().toISOString()};this.jobs.set(job.id,{job});
+  try{let stdout='',nextCwd=cwd;const at=(value='')=>this.target(cwd,value);
+   switch(name){
+    case'help':this.requireCount(name,tokens,0);stdout=`Restricted commands:\n${terminalCommandNames.join('  ')}\nAll paths are contained in FluidaOS storage.`;break;
+    case'pwd':this.requireCount(name,tokens,0);stdout=`/${cwd}`;break;
+    case'cd':this.requireCount(name,tokens,0,1);{const target=at(tokens[0]??'');if(!(await fs.stat(this.files.resolve(target))).isDirectory())throw commandError('Not a directory');nextCwd=target;}break;
+    case'ls':this.requireCount(name,tokens,0,1);stdout=(await this.files.list(at(tokens[0]))).map(entry=>`${entry.isDirectory?'d':'-'} ${entry.name}`).join('\n');break;
+    case'tree':this.requireCount(name,tokens,0,1);{const root=at(tokens[0]),rows:string[]=[root||'.'];const walk=async(dir:string,prefix:string):Promise<void>=>{const entries=await this.files.list(dir);for(let i=0;i<entries.length;i++){const entry=entries[i],last=i===entries.length-1;rows.push(`${prefix}${last?'└──':'├──'} ${entry.name}`);if(entry.isDirectory)await walk(entry.path,`${prefix}${last?'    ':'│   '}`);}};await walk(root,'');stdout=rows.join('\n');}break;
+    case'cat':this.requireCount(name,tokens,1);stdout=await this.files.read(at(tokens[0]));break;
+    case'head':case'tail':this.requireCount(name,tokens,1,2);stdout=await this.lines(at(tokens[0]),tokens[1]===undefined?10:Number(tokens[1]),name==='tail');break;
+    case'mkdir':this.requireCount(name,tokens,1);await this.files.mkdir(at(tokens[0]));break;
+    case'rmdir':this.requireCount(name,tokens,1,2);if(tokens[1]!==undefined&&tokens[1]!=='--recursive')throw usage(name,'PATH [--recursive]');await this.files.delete(at(tokens[0]),tokens[1]==='--recursive');break;
+    case'touch':this.requireCount(name,tokens,1);await this.files.touch(at(tokens[0]));break;
+    case'write':case'append':this.requireCount(name,tokens,2,Number.MAX_SAFE_INTEGER);{const file=at(tokens.shift()),content=tokens.join(' ');if(name==='write')await this.files.write(file,content);else await this.files.append(file,content);}break;
+    case'cp':this.requireCount(name,tokens,2);await this.files.copy(at(tokens[0]),at(tokens[1]));break;
+    case'mv':this.requireCount(name,tokens,2);await this.files.rename(at(tokens[0]),at(tokens[1]));break;
+    case'rm':this.requireCount(name,tokens,1);{const file=at(tokens[0]);if((await this.files.metadata(file)).isDirectory)throw commandError('rm only removes files; use rmdir for directories');await this.files.delete(file);}break;
+    case'find':this.requireCount(name,tokens,1,2);stdout=(await this.files.search(tokens[1]?at(tokens[0]):cwd,tokens[1]??tokens[0])).map(entry=>entry.path).join('\n');break;
+    case'stat':this.requireCount(name,tokens,1);{const entry=await this.files.metadata(at(tokens[0]));stdout=[`Path: ${entry.path}`,`Type: ${entry.isDirectory?'directory':'file'}`,`Size: ${entry.size}`,`Modified: ${entry.modifiedAt}`,`MIME: ${entry.mimeType}`].join('\n');}break;
+    case'date':this.requireCount(name,tokens,0);stdout=new Date().toISOString();break;
+    case'clear':this.requireCount(name,tokens,0);stdout='';break;
+   }
+   if(Date.now()-started>this.timeoutMs) return this.finish(job,{kind:'timed-out'},'','',null,cwd,started);
+   return this.finish(job,{kind:'completed',exitCode:0},this.bounded(stdout),'',0,nextCwd,started);
+  }catch(error){const state:TerminalJobState={kind:'failed',exitCode:null,reason:(error as Error).message};this.finish(job,state,'',(error as Error).message,null,cwd,started);throw error;}
+ }
+ private finish(job:TerminalJob,state:TerminalJobState,stdout:string,stderr:string,exitCode:number|null,cwd:string,started:number):TerminalResult{job.state=state;job.finishedAt=new Date().toISOString();return{jobId:job.id,stdout,stderr,exitCode,duration:Date.now()-started,cwd,state};}
+ terminate(ownerId:string,id:string){const running=this.jobs.get(id);if(!running)throw Object.assign(new Error('Terminal job not found'),{status:404,code:'NOT_FOUND'});if(running.job.ownerId!==ownerId)throw Object.assign(new Error('Terminal job belongs to another session'),{status:403,code:'FORBIDDEN'});if(running.job.state.kind!=='running')throw commandError('Terminal job is not running');running.job.state={kind:'cancelled'};running.job.finishedAt=new Date().toISOString();return running.job;}
 }
