@@ -5,7 +5,8 @@
   "scripts": {
     "build": "tsc",
     "start": "tsc && node dist/server/index.js",
-    "dev": "tsx watch src/server/index.ts"
+    "dev": "tsx watch src/server/index.ts",
+    "test": "npm run build && node --test dist/server/tests/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

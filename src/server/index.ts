@@ -1,62 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
-import { fsManager } from './fsManager.js';
-import { appManager } from './appManager.js';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { apiRouter } from './routes/api.js';
+import { errorHandler, notFound } from './middleware/http.js';
 
-const app = express();
-const PORT = 3000;
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.resolve(process.cwd(), 'src/public')));
-
-// --- API File System ---
-app.get('/api/fs', async (req, res) => {
-    try {
-        const dirPath = (req.query.path as string) || '';
-        const files = await fsManager.listDir(dirPath);
-        res.json({ success: true, data: files });
-    } catch (error: any) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-app.post('/api/fs/read', async (req, res) => {
-    try {
-        const { path: filePath } = req.body;
-        const content = await fsManager.readFile(filePath);
-        res.json({ success: true, content });
-    } catch (error: any) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-app.post('/api/fs/write', async (req, res) => {
-    try {
-        const { path: filePath, content } = req.body;
-        const result = await fsManager.writeFile(filePath, content);
-        res.json(result);
-    } catch (error: any) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-app.delete('/api/fs', async (req, res) => {
-    try {
-        const { path: targetPath } = req.body;
-        const result = await fsManager.deleteItem(targetPath);
-        res.json(result);
-    } catch (error: any) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// --- API Aplikasi ---
-app.get('/api/apps', (req, res) => {
-    res.json({ success: true, data: appManager.getApps() });
-});
-
-app.listen(PORT, () => {
-    console.log(`[OS Core] Berhasil nyala! Akses OS lu di: http://localhost:${PORT}`);
-});
+export function createApp() { const app=express(); app.use(cors()); app.use(express.json({limit:'1mb'})); app.use('/assets',express.static(path.resolve(process.cwd(),'dist'))); app.use('/styles',express.static(path.resolve(process.cwd(),'src/client/styles'))); app.use(express.static(path.resolve(process.cwd(),'src/public'))); app.use('/api',apiRouter()); app.use('/api',notFound); app.use(errorHandler); return app; }
+const isMain=process.argv[1]&&fileURLToPath(import.meta.url)===path.resolve(process.argv[1]);
+if(isMain) createApp().listen(Number(process.env.PORT)||3000,()=>console.log('FluidaOS ready at http://localhost:3000'));
