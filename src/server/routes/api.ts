@@ -53,8 +53,8 @@ export function apiRouter(files=new FileService(),data=new DataService(),service
 
  router.get('/shell/session',route(async(_req,res)=>res.json({success:true,data:await data.session.read()})));
  router.put('/shell/session',route(async(req,res)=>{if(!object(req.body)||!Array.isArray(req.body.workspaces))throw fail('Invalid shell session');res.json({success:true,data:await data.saveSession(req.body as unknown as ShellSession)});}));
- router.get('/settings',route(async(_req,res)=>res.json({success:true,data:await data.settings.read()})));
- router.put('/settings',route(async(req,res)=>res.json({success:true,data:await data.saveSettings(validateSettings(req.body,await data.settings.read()))})));
+ router.get('/settings',route(async(_req,res)=>res.json({success:true,data:await data.readSettings()})));
+ router.put('/settings',route(async(req,res)=>res.json({success:true,data:await data.saveSettings(validateSettings(req.body,await data.readSettings()))})));
  router.post('/settings/reset',route(async(_req,res)=>res.json({success:true,data:await data.resetSettings()})));
 
  router.post('/terminal/jobs',requireObject(['command','cwd']),route(async(req,res)=>res.status(201).json({success:true,data:await terminal.execute(owner(req),req.body)})));
