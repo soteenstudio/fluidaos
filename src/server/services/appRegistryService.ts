@@ -1,0 +1,16 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import type {AppCapability,AppManifest,InstalledApp} from '../../shared/types/domain.js';
+import {JsonRepository} from './jsonRepository.js';
+const capabilities=new Set<AppCapability>(['files:read','files:write','terminal','notifications','system:read']);
+const validation=(message:string)=>Object.assign(new Error(message),{status:400,code:'INVALID_MANIFEST'});
+export class AppRegistryService {
+ private repository:JsonRepository<InstalledApp[]>;
+ constructor(private registryRoot=path.resolve(process.cwd(),'app_packages'),dataRoot=path.resolve(process.cwd(),'os_storage/.fluida'),private builtins:InstalledApp[]=[]){this.registryRoot=path.resolve(registryRoot);this.repository=new JsonRepository(path.join(dataRoot,'apps.json'),[]);}
+ validate(value:unknown):AppManifest{if(!value||typeof value!=='object')throw validation('Manifest must be an object');const row=value as Record<string,unknown>;for(const key of ['id','name','icon','description','version','entryPoint'])if(typeof row[key]!=='string'||!row[key])throw validation(`Invalid ${key}`);if(!/^[a-z0-9][a-z0-9-]{1,63}$/.test(row.id as string))throw validation('Invalid application ID');if(!Array.isArray(row.capabilities)||row.capabilities.some(item=>typeof item!=='string'||!capabilities.has(item as AppCapability)))throw validation('Invalid capabilities');return row as unknown as AppManifest;}
+ private packagePath(relative:string){if(path.isAbsolute(relative)||relative.includes('\0'))throw validation('Invalid package path');const target=path.resolve(this.registryRoot,relative);if(target!==this.registryRoot&&!target.startsWith(`${this.registryRoot}${path.sep}`))throw validation('Package escapes registry root');return target;}
+ async list(){return[...this.builtins,...await this.repository.read()];}
+ async install(packagePath:string){const directory=this.packagePath(packagePath),manifest=this.validate(JSON.parse(await fs.readFile(path.join(directory,'manifest.json'),'utf8')));const entry=path.resolve(directory,manifest.entryPoint);if(entry!==directory&&!entry.startsWith(`${directory}${path.sep}`))throw validation('Entry point escapes package');if(!(await fs.stat(entry)).isFile())throw validation('Entry point is not a file');const rows=await this.list();if(rows.some(app=>app.manifest.id===manifest.id))throw Object.assign(new Error('Application ID already installed'),{status:409,code:'DUPLICATE_APP'});const application:InstalledApp={manifest,source:{kind:'local',packagePath},enabled:true,installedAt:new Date().toISOString()},local=await this.repository.read();local.push(application);await this.repository.write(local);return application;}
+ async setEnabled(id:string,enabled:boolean){const rows=await this.repository.read(),app=rows.find(row=>row.manifest.id===id);if(!app)throw Object.assign(new Error('Application not found'),{status:404,code:'NOT_FOUND'});app.enabled=enabled;await this.repository.write(rows);return app;}
+ async uninstall(id:string){const rows=await this.repository.read(),next=rows.filter(row=>row.manifest.id!==id);if(next.length===rows.length)throw Object.assign(new Error('Application not found'),{status:404,code:'NOT_FOUND'});await this.repository.write(next);}
+}
