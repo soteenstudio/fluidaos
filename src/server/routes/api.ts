@@ -76,7 +76,7 @@ export function apiRouter(files=new FileService(),data=new DataService(),service
  router.get('/notifications',route(async(_req,res)=>res.json({success:true,data:await data.notifications.read()})));
  router.patch('/notifications/:id',route(async(req,res)=>{if(typeof req.body?.read!=='boolean')throw fail('read must be a boolean');const rows=await data.notifications.read(),row=rows.find(notification=>notification.id===req.params.id);if(!row)throw fail('Notification not found','NOT_FOUND',404);row.read=req.body.read;await data.notifications.write(rows);res.json({success:true,data:row});}));
  router.delete('/notifications/:id',route(async(req,res)=>{await data.notifications.write((await data.notifications.read()).filter(notification=>notification.id!==req.params.id));res.json({success:true,data:null});}));
- router.get('/system/resources',route(async(_req,res)=>res.json({success:true,data:await monitor.snapshot()})));
- router.get('/system',route(async(_req,res)=>{const snapshot=await monitor.snapshot();snapshot.apps=(await registry.list()).length;res.json({success:true,data:snapshot});}));
+ router.get('/system/resources',route(async(req,res)=>res.json({success:true,data:await monitor.snapshot(owner(req))})));
+ router.get('/system',route(async(req,res)=>{const snapshot=await monitor.snapshot(owner(req));snapshot.apps=(await registry.list()).length;res.json({success:true,data:snapshot});}));
  return router;
 }
