@@ -1,8 +1,9 @@
 import type {ShellSession,Workspace} from '../../shared/types/domain.js';
 import {api,body} from '../core/api.js'; import {state,activeWorkspace} from '../core/state.js';
 const changed=()=>document.dispatchEvent(new CustomEvent('workspace-changed'));
-export async function restoreSession(){state.session=await api<ShellSession>('/shell/session');return state.session;}
-export function persistSession(){if(!state.session)return;window.clearTimeout(state.saveTimer);state.saveTimer=window.setTimeout(()=>api('/shell/session',{method:'PUT',body:body(state.session)}).catch(console.error),200);}
+let saveQueue:Promise<void>=Promise.resolve(),pendingSnapshot:string|undefined;
+export async function restoreSession(hydrate?:()=>void|Promise<void>){state.session=await api<ShellSession>('/shell/session');await hydrate?.();return state.session;}
+export function persistSession(){if(!state.session)return;pendingSnapshot=body(structuredClone(state.session));window.clearTimeout(state.saveTimer);state.saveTimer=window.setTimeout(()=>{const snapshot=pendingSnapshot;if(!snapshot)return;pendingSnapshot=undefined;saveQueue=saveQueue.catch(()=>undefined).then(()=>api('/shell/session',{method:'PUT',body:snapshot}).then(()=>undefined)).catch(console.error);},200);}
 export function createWorkspace(name='Workspace'){const workspace:Workspace={id:crypto.randomUUID(),name:name.trim()||'Workspace',windows:[],zIndexSequence:10,layout:'freeform'};state.session!.workspaces.push(workspace);switchWorkspace(workspace.id);return workspace;}
 export function renameWorkspace(id:string,name:string){const workspace=state.session!.workspaces.find(item=>item.id===id);if(!workspace)throw new Error('Workspace not found');workspace.name=name.trim()||workspace.name;persistSession();changed();}
 export function switchWorkspace(id:string){if(!state.session!.workspaces.some(item=>item.id===id))throw new Error('Workspace not found');state.session!.activeWorkspaceId=id;for(const runtime of state.runtime.values())runtime.element.hidden=!activeWorkspace().windows.some(window=>window.id===runtime.id)||runtime.model.minimized;persistSession();changed();}
