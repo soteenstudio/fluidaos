@@ -4,14 +4,14 @@ FluidaOS is a modular browser desktop with persistent local data, movable window
 
 ## Run locally
 
-Requires Node.js 20 or newer.
+Requires a stable Rust toolchain (Rust 1.80 or newer), Cargo, and Node.js 20 or newer. Node.js is used only to compile the browser client.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. For a production-style run use `npm start`; run validation and service tests with `npm test`. User content is stored under `os_storage/`, while configuration and app records live in `os_storage/.fluida/`.
+Open `http://localhost:3000`. `npm run dev` compiles the frontend and starts the Rust server with Cargo. For a production-style run use `npm start`; run the frontend build and Rust test suite with `npm test`. To run the steps separately, use `npm run build`, `cargo run -p fluida-server`, and `cargo test --workspace`. Cargo incremental compilation is disabled in development and release profiles. User content is stored under `os_storage/`, while configuration and app records live in `os_storage/.fluida/`.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ Open `http://localhost:3000`. For a production-style run use `npm start`; run va
 - `src/client/shell` implements window lifecycle, focus, dragging, resize, and task switching.
 - `src/client/apps` contains the built-in application views and safe terminal commands.
 - `src/client/styles` contains design tokens, responsive layout, themes, wallpapers, and motion rules.
-- `src/server/routes`, `services`, and `middleware` separate HTTP transport, persistent repositories, storage access, validation, and typed errors.
+- `crates/fluida-server` contains the Axum HTTP server, persistent repositories, storage access, validation, session middleware, and typed errors.
 - `src/shared/types` defines domain contracts used by client and server.
 
 ## Built-in features
