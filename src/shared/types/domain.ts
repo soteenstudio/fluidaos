@@ -2,7 +2,8 @@ export interface WindowBounds { x:number; y:number; width:number; height:number 
 export type WindowSnap={kind:'none'}|{kind:'half';position:'left'|'right'|'top'|'bottom'}|{kind:'quadrant';position:'top-left'|'top-right'|'bottom-left'|'bottom-right'};
 export type WindowMode={kind:'normal'}|{kind:'maximized';restoreBounds:WindowBounds}|{kind:'snapped';snap:Exclude<WindowSnap,{kind:'none'}>;restoreBounds:WindowBounds};
 export interface WindowState { id:string;appId:string;title:string;bounds:WindowBounds;mode:WindowMode;minimized:boolean;zIndex:number;appState?:Record<string,unknown> }
-export interface Workspace { id:string;name:string;windows:WindowState[];activeWindowId?:string;zIndexSequence:number;layout:'freeform'|'tiled' }
+export interface DesktopShortcutPosition { x:number;y:number }
+export interface Workspace { id:string;name:string;windows:WindowState[];activeWindowId?:string;zIndexSequence:number;layout:'freeform'|'tiled';shortcutPositions?:Record<string,DesktopShortcutPosition> }
 export interface ShellSession { id:string;workspaces:Workspace[];activeWorkspaceId:string;pinnedApplications:string[];updatedAt:string }
 export const terminalCommandNames=['help','pwd','cd','ls','tree','cat','head','tail','mkdir','rmdir','touch','write','append','cp','mv','rm','find','stat','date','clear'] as const;
 export type TerminalCommandName=typeof terminalCommandNames[number];
