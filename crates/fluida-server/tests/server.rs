@@ -72,7 +72,8 @@ async fn api_preserves_envelopes_cookies_static_assets_and_cors() {
         .get(header::SET_COOKIE)
         .unwrap()
         .to_str()
-        .unwrap();
+        .unwrap()
+        .to_owned();
     assert!(
         cookie.contains("Path=/api")
             && cookie.contains("HttpOnly")
@@ -80,6 +81,19 @@ async fn api_preserves_envelopes_cookies_static_assets_and_cors() {
             && cookie.contains("Max-Age=31536000")
     );
     assert!(json(response).await["success"].as_bool().unwrap());
+    let system = server
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/system")
+                .header(header::COOKIE, cookie.split(';').next().unwrap())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(system.status(), StatusCode::OK);
+    assert!(json(system).await["success"].as_bool().unwrap());
     let invalid = server
         .clone()
         .oneshot(

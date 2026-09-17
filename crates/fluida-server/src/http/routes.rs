@@ -7,10 +7,11 @@ use crate::{
         system_monitor::SystemMonitor,
         terminal_service::TerminalService,
     },
+    SessionOwner,
 };
 use axum::{
     body::Body,
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get, patch, post},
@@ -37,7 +38,10 @@ fn string<'a>(v: &'a Value, key: &str) -> Result<&'a str> {
         .and_then(Value::as_str)
         .ok_or_else(|| ApiError::validation(format!("{key} must be a string")))
 }
-fn owner(headers: &axum::http::HeaderMap) -> Result<String> {
+fn owner(extension: Option<&SessionOwner>, headers: &axum::http::HeaderMap) -> Result<String> {
+    if let Some(owner) = extension {
+        return Ok(owner.0.clone());
+    }
     let id = headers
         .get("x-fluida-session")
         .and_then(|v| v.to_str().ok())
@@ -286,34 +290,38 @@ async fn settings_reset(State(s): State<Arc<AppState>>) -> Result<Json<Value>> {
 }
 async fn job_create(
     State(s): State<Arc<AppState>>,
+    extension: Option<Extension<SessionOwner>>,
     headers: axum::http::HeaderMap,
     Json(v): Json<Value>,
 ) -> Result<impl IntoResponse> {
+    let owner = owner(extension.as_deref(), &headers)?;
     let result = s
         .terminal
-        .execute(
-            &owner(&headers)?,
-            string(&v, "command")?,
-            string(&v, "cwd")?,
-        )
+        .execute(&owner, string(&v, "command")?, string(&v, "cwd")?)
         .await?;
     Ok((StatusCode::CREATED, ok(result)))
 }
 async fn jobs(
     State(s): State<Arc<AppState>>,
+    extension: Option<Extension<SessionOwner>>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<Value>> {
     Ok(ok(serde_json::to_value(
-        s.terminal.list(&owner(&headers)?).await,
+        s.terminal
+            .list(&owner(extension.as_deref(), &headers)?)
+            .await,
     )?))
 }
 async fn job_delete(
     State(s): State<Arc<AppState>>,
+    extension: Option<Extension<SessionOwner>>,
     headers: axum::http::HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Value>> {
     Ok(ok(serde_json::to_value(
-        s.terminal.terminate(&owner(&headers)?, &id).await?,
+        s.terminal
+            .terminate(&owner(extension.as_deref(), &headers)?, &id)
+            .await?,
     )?))
 }
 async fn app_state_get(
@@ -482,7 +490,11 @@ async fn notification_delete(
 }
 async fn system(
     State(s): State<Arc<AppState>>,
+    extension: Option<Extension<SessionOwner>>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<Value>> {
-    Ok(ok(s.monitor.snapshot(&owner(&headers)?).await?))
+    Ok(ok(s
+        .monitor
+        .snapshot(&owner(extension.as_deref(), &headers)?)
+        .await?))
 }
