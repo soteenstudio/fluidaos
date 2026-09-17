@@ -22,6 +22,9 @@ use tower_http::{
     services::{ServeDir, ServeFile},
 };
 
+#[derive(Clone)]
+pub struct SessionOwner(pub String);
+
 pub async fn app(config: Config) -> Router {
     let data = services::data_service::DataService::new(&config.storage_root.join(".fluida"));
     let files = services::file_service::FileService::new(config.storage_root.clone());
@@ -82,7 +85,7 @@ pub async fn app(config: Config) -> Router {
 }
 async fn session(
     State(state): State<Arc<AppState>>,
-    request: Request<Body>,
+    mut request: Request<Body>,
     next: Next,
 ) -> Response {
     let cookie = request
@@ -103,6 +106,9 @@ async fn session(
             .headers()
             .get("x-forwarded-proto")
             .is_some_and(|v| v == "https");
+    request
+        .extensions_mut()
+        .insert(SessionOwner(owner.clone()));
     let mut response = next.run(request).await;
     if matches!(
         response.status(),
