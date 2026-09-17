@@ -3,6 +3,7 @@ use crate::{
     services::{
         app_registry::AppRegistry,
         data_service::{validate_settings, DataService},
+        device_control::DeviceControl,
         file_service::FileService,
         system_monitor::SystemMonitor,
         terminal_service::TerminalService,
@@ -28,6 +29,7 @@ pub struct AppState {
     pub registry: AppRegistry,
     pub monitor: SystemMonitor,
     pub secret: Vec<u8>,
+    pub devices: DeviceControl,
 }
 type Result<T> = std::result::Result<T, ApiError>;
 fn ok(value: Value) -> Json<Value> {
@@ -93,10 +95,27 @@ pub fn router() -> Router<Arc<AppState>> {
             patch(notification_read).delete(notification_delete),
         )
         .route("/system", get(system))
+        .route("/device-control", get(device_state).put(device_set))
         .route("/system/resources", get(system))
         .fallback(|| async {
             ApiError::new(StatusCode::NOT_FOUND, "NOT_FOUND", "Endpoint not found")
         })
+}
+async fn device_state(State(s): State<Arc<AppState>>) -> Result<Json<Value>> {
+    Ok(ok(serde_json::to_value(s.devices.state())?))
+}
+async fn device_set(State(s): State<Arc<AppState>>, Json(v): Json<Value>) -> Result<Json<Value>> {
+    let kind = string(&v, "control")?;
+    let value = v
+        .get("value")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| ApiError::validation("value must be an integer"))?;
+    if value > 100 {
+        return Err(ApiError::validation(
+            "Device values must be between 0 and 100",
+        ));
+    }
+    Ok(ok(serde_json::to_value(s.devices.set(kind, value as u8)?)?))
 }
 #[derive(Deserialize)]
 struct FsQuery {

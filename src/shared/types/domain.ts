@@ -26,7 +26,9 @@ export interface NotificationPreferences { enabled:boolean;sound:boolean;showPre
 export interface AccessibilityPreferences { highContrast:boolean;focusVisible:boolean;textScale:number }
 export interface DesktopPreferences { workspaceBehavior:'restore'|'fresh';shortcutLayout:'grid'|'list';dockAutoHide:boolean;clockFormat:'12h'|'24h' }
 export interface DefaultApplications { text:string;images:string }
-export interface QuickTogglePreferences { theme:'light'|'dark'|'system';reducedMotion:boolean;volume:number;brightness:number;dockPosition:'bottom'|'left'|'right' }
+export interface QuickTogglePreferences { theme:'light'|'dark'|'system';reducedMotion:boolean;chimeVolume:number;dockPosition:'bottom'|'left'|'right' }
+export interface DeviceCapability { supported:boolean;value:number|null;reason:string|null }
+export interface DeviceControlState { volume:DeviceCapability;brightness:DeviceCapability }
 export interface Settings extends QuickTogglePreferences { accent:string;wallpaper:string;fontScale:number;animation:'full'|'reduced'|'none';filesView:'grid'|'list';notifications:NotificationPreferences;accessibility:AccessibilityPreferences;desktop:DesktopPreferences;defaultApps:DefaultApplications }
 export interface Note { id:string;title:string;body:string;folder:string;updatedAt:string }
 export interface Notification { id:string;title:string;message:string;read:boolean;createdAt:string;source?:string }

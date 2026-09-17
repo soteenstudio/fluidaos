@@ -39,6 +39,7 @@ pub async fn app(config: Config) -> Router {
         terminal.clone(),
         registry.clone(),
     );
+    let devices = services::device_control::native(config.device_control_enabled, &config.host);
     let state = Arc::new(AppState {
         data,
         files,
@@ -46,6 +47,7 @@ pub async fn app(config: Config) -> Router {
         registry,
         monitor,
         secret: config.session_secret.as_bytes().to_vec(),
+        devices,
     });
     let mut cors = CorsLayer::new()
         .allow_credentials(true)
