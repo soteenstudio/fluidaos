@@ -77,5 +77,10 @@ All endpoints return JSON. Failures use `{ "success": false, "error": { "code", 
 | `GET`, `POST`, `DELETE /api/notes/:id` | Search, save, and remove notes |
 | `GET`, `PATCH`, `DELETE /api/notifications/:id` | Manage notification state |
 | `GET /api/system` | Report storage, runtime, and app totals |
+| `GET`, `PUT /api/device-control` | Read or update explicitly enabled local host controls |
 
 Storage paths must be relative. Absolute paths, null bytes, traversal outside `os_storage`, invalid request bodies, unknown or out-of-range settings, invalid Base64, and uploads over 5 MiB are rejected. Text previews are capped at 128 KiB (and never exceed 256 KiB when requested), terminal output at 64 KiB, and search results at 500 entries.
+
+### Host device controls
+
+Control Center reports real system-volume and display-brightness capabilities from the local host. These controls are disabled by default and remain unavailable for non-loopback servers, containers, unsupported systems, missing hardware, or insufficient permissions. On a local Linux desktop, set `DEVICE_CONTROL_ENABLED=true` to opt in; volume uses the installed PipeWire/PulseAudio `pactl` interface and brightness uses the kernel backlight interface under `/sys/class/backlight`. Notification chime volume is a separate application preference and never changes system volume.

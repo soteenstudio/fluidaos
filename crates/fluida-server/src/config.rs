@@ -9,6 +9,7 @@ pub struct Config {
     pub storage_root: PathBuf,
     pub registry_root: PathBuf,
     pub project_root: PathBuf,
+    pub device_control_enabled: bool,
 }
 
 impl Config {
@@ -31,6 +32,8 @@ impl Config {
                 .collect(),
             storage_root: project_root.join("os_storage"),
             registry_root: project_root.join("app_packages"),
+            device_control_enabled: env::var("DEVICE_CONTROL_ENABLED")
+                .is_ok_and(|value| value.eq_ignore_ascii_case("true") || value == "1"),
             project_root,
         }
     }

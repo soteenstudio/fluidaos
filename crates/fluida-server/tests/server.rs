@@ -29,6 +29,7 @@ fn config(root: &TempDir) -> Config {
         storage_root: project.join("os_storage"),
         registry_root: project.join("app_packages"),
         project_root: project,
+        device_control_enabled: false,
     }
 }
 async fn json(response: axum::response::Response) -> Value {

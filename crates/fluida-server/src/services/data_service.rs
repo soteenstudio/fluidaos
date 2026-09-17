@@ -35,7 +35,7 @@ pub struct Notification {
 
 pub fn default_settings() -> Value {
     json!({
-        "theme":"dark","accent":"#7c6cff","wallpaper":"aurora","fontScale":1.0,"dockPosition":"bottom","animation":"full","reducedMotion":false,"volume":70,"brightness":100,"filesView":"grid",
+        "theme":"dark","accent":"#7c6cff","wallpaper":"aurora","fontScale":1.0,"dockPosition":"bottom","animation":"full","reducedMotion":false,"chimeVolume":70,"filesView":"grid",
         "notifications":{"enabled":true,"sound":true,"showPreviews":true,"doNotDisturb":false},
         "accessibility":{"highContrast":false,"focusVisible":true,"textScale":1.0},
         "desktop":{"workspaceBehavior":"restore","shortcutLayout":"grid","dockAutoHide":false,"clockFormat":"24h"},
@@ -136,7 +136,17 @@ impl DataService {
     }
     pub async fn read_settings(&self) -> Result<Value, ApiError> {
         let mut value = default_settings();
-        merge(&mut value, &self.settings.read().await?);
+        let mut saved = self.settings.read().await?;
+        if let Some(object) = saved.as_object_mut() {
+            if !object.contains_key("chimeVolume") {
+                if let Some(volume) = object.get("volume").cloned() {
+                    object.insert("chimeVolume".into(), volume);
+                }
+            }
+            object.remove("volume");
+            object.remove("brightness");
+        }
+        merge(&mut value, &saved);
         self.settings.write(&value).await
     }
     pub async fn save_settings(&self, patch: &Value) -> Result<Value, ApiError> {
@@ -212,8 +222,7 @@ pub fn validate_settings(patch: &Value, current: &Value) -> Result<(), ApiError>
         "dockPosition",
         "animation",
         "reducedMotion",
-        "volume",
-        "brightness",
+        "chimeVolume",
         "filesView",
         "notifications",
         "accessibility",
@@ -265,8 +274,7 @@ pub fn validate_settings(patch: &Value, current: &Value) -> Result<(), ApiError>
             .unwrap()
             .is_match(string("accent").unwrap_or(""))
         || !(0.8..=1.4).contains(&number("fontScale").unwrap_or(-1.0))
-        || !(0.0..=100.0).contains(&number("volume").unwrap_or(-1.0))
-        || !(10.0..=100.0).contains(&number("brightness").unwrap_or(-1.0))
+        || !(0.0..=100.0).contains(&number("chimeVolume").unwrap_or(-1.0))
         || value
             .get("reducedMotion")
             .and_then(Value::as_bool)
