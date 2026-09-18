@@ -1,1 +1,74 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#11121a"><title>FluidaOS</title><link rel="stylesheet" href="/styles/design.css"><link rel="stylesheet" href="/styles/platform.css"></head><body><main id="os" aria-label="FluidaOS desktop"></main><script type="module" src="/assets/client/core/main.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>My Browser OS</title>
+    <style>
+        body { font-family: sans-serif; background: #1e1e1e; color: #fff; margin: 0; padding: 20px; }
+        .container { display: flex; gap: 20px; }
+        .panel { background: #2d2d2d; padding: 15px; border-radius: 8px; flex: 1; }
+        button { background: #007acc; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-top: 5px; }
+        button:hover { background: #005999; }
+        ul { list-style: none; padding: 0; }
+        li { padding: 5px 0; border-bottom: 1px solid #444; display: flex; justify-content: space-between; }
+    </style>
+</head>
+<body>
+    <h1>💻 My Hybrid Browser OS</h1>
+    <div class="container">
+        <div class="panel">
+            <h3>Dplikasi Terinstal</h3>
+            <ul id="app-list"></ul>
+        </div>
+        <div class="panel">
+            <h3>File System (dalam folder os_storage)</h3>
+            <button onclick="loadFiles()">Refresh File</button>
+            <button onclick="createTestFile()">Buat File Test.txt</button>
+            <ul id="file-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        async function loadApps() {
+            const res = await fetch('/api/apps');
+            const json = await res.json();
+            const list = document.getElementById('app-list');
+            list.innerHTML = json.data.map(app => `<li><span>${app.icon} ${app.name}</span></li>`).join('');
+        }
+
+        async function loadFiles() {
+            const res = await fetch('/api/fs');
+            const json = await res.json();
+            const list = document.getElementById('file-list');
+            list.innerHTML = json.data.map(file => `
+                <li>
+                    <span>${file.isDirectory ? '📁' : '📄'} ${file.name}</span>
+                    ${!file.isDirectory ? `<button onclick="readFile('${file.path}')">Baca</button>` : ''}
+                </li>
+            `).join('');
+        }
+
+        async function createTestFile() {
+            await fetch('/api/fs/write', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: 'test.txt', content: 'Halo, ini file yang ditulis dari Browser OS!' })
+            });
+            loadFiles();
+        }
+
+        async function readFile(path) {
+            const res = await fetch('/api/fs/read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path })
+            });
+            const json = await res.json();
+            alert("Isi file:\n\n" + json.content);
+        }
+
+        loadApps();
+        loadFiles();
+    </script>
+</body>
+</html>
