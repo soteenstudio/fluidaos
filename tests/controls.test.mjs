@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {existsSync} from 'node:fs';
 import {readFile} from 'node:fs/promises';
 import {parseHTML} from 'linkedom';
 import {bindDropdown,dropdown,nextListboxIndex,requestText} from '../dist/client/core/controls.js';
@@ -77,3 +78,9 @@ test('requestText supports cancel, Escape, backdrop dismissal, and focus trappin
 });
 
 test('default prompts and selects are absent',async()=>{for(const path of ['../src/client/core/main.ts','../src/client/apps/apps.ts']){const source=await readFile(new URL(path,import.meta.url),'utf8');assert.doesNotMatch(source,/\bprompt\s*\(/);assert.doesNotMatch(source,/<select\b/i);}});
+
+test('served control stylesheet contains the current dropdown and dialog design',async()=>{
+ const source=await readFile(new URL('../src/client/styles/controls.css',import.meta.url),'utf8');
+ for(const selector of ['.dropdown-list button:not([aria-selected=true]):before','.dropdown-trigger i','.dropdown-trigger[aria-expanded=true] i','.control-dialog-actions','.control-secondary','.control-primary'])assert.equal(source.includes(selector),true);
+ assert.equal(existsSync(new URL('../src/public/styles/controls.css',import.meta.url)),false);
+});
