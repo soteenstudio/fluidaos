@@ -316,10 +316,6 @@ async fn app_asset(
                 "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-scripts"
                     .into(),
             ),
-            (
-                axum::http::HeaderName::from_static("cross-origin-resource-policy"),
-                "same-origin".into(),
-            ),
         ],
         body,
     )
