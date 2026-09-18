@@ -1,0 +1,30 @@
+.custom-dropdown{position:relative;display:inline-block;min-width:9rem;color:var(--text)}
+.dropdown-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.5rem .7rem;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:inherit;box-shadow:0 1px 0 rgba(255,255,255,.04);cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
+.dropdown-trigger i{width:.45rem;height:.45rem;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform .16s ease}
+.dropdown-trigger:hover{background:color-mix(in srgb,var(--surface2),var(--text) 6%);border-color:color-mix(in srgb,var(--border),var(--text) 22%)}
+.dropdown-trigger:active{transform:translateY(1px)}
+.dropdown-trigger[aria-expanded=true]{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent),transparent 76%)}
+.dropdown-trigger[aria-expanded=true] i{transform:translateY(2px) rotate(225deg)}
+.dropdown-trigger:disabled{opacity:.5;cursor:not-allowed}
+.dropdown-trigger:focus-visible,.dropdown-list button:focus-visible,.control-dialog input:focus-visible,.control-dialog button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dropdown-list{position:absolute;z-index:1700;top:calc(100% + 6px);left:0;right:0;min-width:max-content;max-height:min(18rem,50vh);overflow:auto;padding:5px;border:1px solid var(--border);border-radius:10px;background:var(--surface);box-shadow:var(--shadow)}
+.dropdown-list button{display:flex;align-items:center;gap:.55rem;width:100%;padding:8px 10px;border:0;border-radius:7px;background:transparent;color:inherit;text-align:left;cursor:pointer}
+.dropdown-list button:hover,.dropdown-list button:focus-visible{background:var(--surface2)}
+.dropdown-list button[aria-selected=true]{background:color-mix(in srgb,var(--accent),transparent 86%)}
+.dropdown-list button[aria-selected=true]:before{content:'✓';width:1rem;color:var(--accent);font-weight:700}
+.dropdown-list button:not([aria-selected=true]):before{content:'';width:1rem}
+.control-modal{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:20px;background:rgba(5,6,12,.62);backdrop-filter:blur(8px)}
+.control-dialog{width:min(420px,100%);padding:22px;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.control-dialog h2{margin:0 0 18px;font-size:1.2rem;line-height:1.3}
+.control-dialog label{display:block;margin-bottom:7px;color:var(--muted);font-size:.84rem;font-weight:600}
+.control-dialog input{box-sizing:border-box;width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:inherit}
+.control-dialog input:hover{border-color:color-mix(in srgb,var(--border),var(--text) 22%)}
+.control-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.control-dialog button{padding:9px 14px;border:1px solid transparent;border-radius:9px;cursor:pointer}
+.control-dialog .control-secondary{border-color:var(--border);background:var(--surface2);color:inherit}
+.control-dialog .control-primary{background:var(--accent);color:white;font-weight:650}
+.control-dialog button:hover{filter:brightness(1.08)}
+.control-dialog button:active{transform:translateY(1px)}
+@media(max-width:480px){.control-modal{align-items:end;padding:12px}.control-dialog{box-sizing:border-box;width:100%;padding:18px;border-radius:14px}.control-dialog-actions{flex-direction:column-reverse}.control-dialog button{width:100%}}
+@media(prefers-reduced-motion:reduce){.dropdown-trigger,.dropdown-trigger i{transition:none}}
+@media(forced-colors:active){.dropdown-trigger,.dropdown-list,.control-dialog,.control-dialog input,.control-dialog button{border:1px solid CanvasText}.dropdown-trigger:focus-visible,.dropdown-list button:focus-visible,.control-dialog input:focus-visible,.control-dialog button:focus-visible{outline:2px solid Highlight}.dropdown-list button[aria-selected=true]{color:HighlightText;background:Highlight}.control-modal{background:Canvas}}
