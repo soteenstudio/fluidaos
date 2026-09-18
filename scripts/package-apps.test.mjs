@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import test from 'node:test';
+import {runInNewContext} from 'node:vm';
 
 const ids=['files','editor','notes','terminal','monitor','calculator','settings','wallpapers','clock','calendar','photos','archive','app-center'];
 const required=['manifest.json','index.html','app.js'];
@@ -64,6 +65,12 @@ test('application runtime initializes immediately and after every load',async()=
  assert.deepEqual(messages,[{fluida:true,type:'init',appId:'files'}]);
  frameListeners.get('load')();
  assert.equal(messages.length,2,'load must send init again');
+ await windowListeners.get('message')({source:contentWindow,origin:'https://fluida.test',data:{fluida:true,appId:'files',type:'ready'}});
+ assert.equal(ready,false,'ready from a non-opaque origin must be rejected');
+ await windowListeners.get('message')({source:{},origin:'null',data:{fluida:true,appId:'files',type:'ready'}});
+ assert.equal(ready,false,'ready from another frame must be rejected');
+ await windowListeners.get('message')({source:contentWindow,origin:'null',data:{fluida:true,appId:'editor',type:'ready'}});
+ assert.equal(ready,false,'ready for another application must be rejected');
  await windowListeners.get('message')({source:contentWindow,origin:'null',data:{fluida:true,appId:'files',type:'ready'}});
  assert.equal(ready,true,'valid ready message must reach the shell');
  cleanup();
@@ -71,4 +78,27 @@ test('application runtime initializes immediately and after every load',async()=
  assert.equal(frameListeners.has('load'),false);
  delete globalThis.window;
  delete globalThis.location;
+});
+
+test('the Files package receives init and replies ready',async()=>{
+ const listeners=new Map(),messages=[],root={innerHTML:''};
+ const context={
+  document:{documentElement:{dataset:{}},querySelector(){return root}},
+  parent:{postMessage(message){messages.push(message)}},
+  window:{addEventListener(type,listener){listeners.set(type,listener)}},
+  list:{innerHTML:'',onclick:null},path:{textContent:''},preview:{textContent:''},
+  up:{onclick:null},newFolder:{onclick:null},search:{onchange:null,value:''},
+  prompt(){return null},String,Map,Error
+ };
+ context.window.parent=context.parent;
+ runInNewContext(readFileSync('packages/apps/files/app.js','utf8'),context);
+ const dispatch=data=>listeners.get('message')({source:context.parent,data});
+ dispatch({fluida:true,type:'init',appId:'files'});
+ await Promise.resolve();
+ const request=messages.find(message=>message.type==='request');
+ assert.equal(request?.operation,'files:read','Files must request its initial directory after init');
+ dispatch({fluida:true,type:'response',requestId:request.requestId,ok:true,data:[]});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(context.document.documentElement.dataset.ready,'true');
+ assert.ok(messages.some(message=>message.type==='ready'&&message.appId==='files'),'Files must reply ready');
 });

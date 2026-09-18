@@ -170,6 +170,47 @@ async fn api_preserves_envelopes_cookies_static_assets_and_cors() {
 }
 
 #[tokio::test]
+async fn sandboxed_files_package_assets_can_load() {
+    let root = TempDir::new().unwrap();
+    let server = app(config(&root)).await;
+
+    for (asset, content_type, body_fragment) in [
+        ("index.html", "text/html", "<script src=\"app.js\"></script>"),
+        ("app.js", "text/javascript", "type:'ready'"),
+    ] {
+        let response = server
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/apps/files/assets/{asset}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers()[header::CONTENT_TYPE]
+            .to_str()
+            .unwrap()
+            .starts_with(content_type));
+        assert_eq!(response.headers()[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+        assert_eq!(response.headers()[header::REFERRER_POLICY], "no-referrer");
+        assert!(response.headers()[header::CONTENT_SECURITY_POLICY]
+            .to_str()
+            .unwrap()
+            .contains("sandbox allow-scripts"));
+        assert!(response
+            .headers()
+            .get("cross-origin-resource-policy")
+            .is_none());
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert!(String::from_utf8(body.to_vec())
+            .unwrap()
+            .contains(body_fragment));
+    }
+}
+
+#[tokio::test]
 async fn oversized_json_is_rejected() {
     let root = TempDir::new().unwrap();
     let server = app(config(&root)).await;
