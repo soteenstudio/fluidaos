@@ -9,8 +9,8 @@
     "test:controls": "npm run build && node --test tests/controls.test.mjs",
     "test": "npm run test:controls && cargo test --workspace"
   },
-  "dependencies": {},
   "devDependencies": {
+    "linkedom": "^0.18.12",
     "typescript": "^5.3.3"
   }
 }
