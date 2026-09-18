@@ -1,9 +1,0 @@
-{
-  "id": "clock",
-  "name": "Clock",
-  "icon": "◷",
-  "description": "World clocks, alarms, timers, and stopwatch",
-  "version": "1.0.0",
-  "entryPoint": "app.js",
-  "capabilities": ["files:read", "files:write"]
-}

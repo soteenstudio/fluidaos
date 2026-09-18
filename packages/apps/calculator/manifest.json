@@ -1,9 +1,0 @@
-{
-  "id": "calculator",
-  "name": "Calculator",
-  "icon": "＋",
-  "description": "Calculate with history",
-  "version": "1.0.0",
-  "entryPoint": "app.js",
-  "capabilities": []
-}
