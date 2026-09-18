@@ -39,7 +39,7 @@ pub async fn app(config: Config) -> Router {
         terminal.clone(),
         registry.clone(),
     );
-    let devices = services::device_control::native(config.device_control_enabled, &config.host);
+    let devices = services::device_control::native(config.device_control_enabled);
     let state = Arc::new(AppState {
         data,
         files,
@@ -108,9 +108,7 @@ async fn session(
             .headers()
             .get("x-forwarded-proto")
             .is_some_and(|v| v == "https");
-    request
-        .extensions_mut()
-        .insert(SessionOwner(owner.clone()));
+    request.extensions_mut().insert(SessionOwner(owner.clone()));
     let mut response = next.run(request).await;
     if matches!(
         response.status(),

@@ -1,5 +1,6 @@
 use axum::{
     body::{to_bytes, Body},
+    extract::ConnectInfo,
     http::{header, Request, StatusCode},
 };
 use fluida_server::{
@@ -82,19 +83,51 @@ async fn api_preserves_envelopes_cookies_static_assets_and_cors() {
             && cookie.contains("Max-Age=31536000")
     );
     assert!(json(response).await["success"].as_bool().unwrap());
+    let session_cookie = cookie.split(';').next().unwrap();
+    let created = server
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/terminal/jobs")
+                .header(header::COOKIE, session_cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"command":"pwd","cwd":""}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let created = json(created).await;
+    assert!(created["success"].as_bool().unwrap());
+    let job_id = created["data"]["jobId"].as_str().unwrap();
     let system = server
         .clone()
         .oneshot(
             Request::builder()
                 .uri("/api/system")
-                .header(header::COOKIE, cookie.split(';').next().unwrap())
+                .header(header::COOKIE, session_cookie)
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(system.status(), StatusCode::OK);
-    assert!(json(system).await["success"].as_bool().unwrap());
+    let system = json(system).await;
+    assert!(system["success"].as_bool().unwrap());
+    let job = system["data"]["jobs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|job| job["id"] == job_id)
+        .expect("the first session should see its terminal job");
+    let session_owner = session_cookie
+        .strip_prefix("fluida-session=")
+        .unwrap()
+        .rsplit_once('.')
+        .unwrap()
+        .0;
+    assert_eq!(job["ownerId"], session_owner);
     let invalid = server
         .clone()
         .oneshot(
@@ -156,6 +189,39 @@ async fn oversized_json_is_rejected() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn device_mutations_require_a_loopback_peer() {
+    let root = TempDir::new().unwrap();
+    let server = app(config(&root)).await;
+    let mut request = Request::builder()
+        .method("PUT")
+        .uri("/api/device-control")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(r#"{"control":"volume","value":20}"#))
+        .unwrap();
+    request.extensions_mut().insert(ConnectInfo(
+        "192.0.2.1:12345".parse::<std::net::SocketAddr>().unwrap(),
+    ));
+    let response = server.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        json(response).await["error"]["code"],
+        "LOCAL_ADMIN_REQUIRED"
+    );
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/device-control")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"control":"volume","value":20}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
 #[test]

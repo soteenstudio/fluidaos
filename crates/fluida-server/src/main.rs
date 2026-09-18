@@ -8,7 +8,12 @@ async fn main() {
         .await
         .expect("failed to bind server");
     println!("FluidaOS ready at http://{address}");
-    axum::serve(listener, app(config).await)
-        .await
-        .expect("server failed");
+    axum::serve(
+        listener,
+        app(config)
+            .await
+            .into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .expect("server failed");
 }

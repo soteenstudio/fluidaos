@@ -12,7 +12,7 @@ use crate::{
 };
 use axum::{
     body::Body,
-    extract::{Extension, Path, Query, State},
+    extract::{ConnectInfo, Extension, Path, Query, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get, patch, post},
@@ -20,7 +20,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 #[derive(Clone)]
 pub struct AppState {
     pub data: DataService,
@@ -102,9 +102,16 @@ pub fn router() -> Router<Arc<AppState>> {
         })
 }
 async fn device_state(State(s): State<Arc<AppState>>) -> Result<Json<Value>> {
-    Ok(ok(serde_json::to_value(s.devices.state())?))
+    Ok(ok(serde_json::to_value(s.devices.state().await)?))
 }
-async fn device_set(State(s): State<Arc<AppState>>, Json(v): Json<Value>) -> Result<Json<Value>> {
+async fn device_set(
+    State(s): State<Arc<AppState>>,
+    peer: Option<Extension<ConnectInfo<SocketAddr>>>,
+    Json(v): Json<Value>,
+) -> Result<Json<Value>> {
+    let administrator = crate::services::device_control::LocalAdministrator::authenticate(
+        peer.map(|Extension(ConnectInfo(peer))| peer),
+    )?;
     let kind = string(&v, "control")?;
     let value = v
         .get("value")
@@ -115,7 +122,9 @@ async fn device_set(State(s): State<Arc<AppState>>, Json(v): Json<Value>) -> Res
             "Device values must be between 0 and 100",
         ));
     }
-    Ok(ok(serde_json::to_value(s.devices.set(kind, value as u8)?)?))
+    Ok(ok(serde_json::to_value(
+        s.devices.set(&administrator, kind, value as u8).await?,
+    )?))
 }
 #[derive(Deserialize)]
 struct FsQuery {
