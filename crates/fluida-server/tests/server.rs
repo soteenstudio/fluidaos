@@ -22,6 +22,11 @@ fn config(root: &TempDir) -> Config {
         "<!doctype html><title>FluidaOS</title>",
     )
     .unwrap();
+    std::fs::write(
+        project.join("src/client/styles/controls.css"),
+        ".control-modal { display: grid; }",
+    )
+    .unwrap();
     Config {
         host: "127.0.0.1".into(),
         port: 3000,
@@ -149,6 +154,21 @@ async fn api_preserves_envelopes_cookies_static_assets_and_cors() {
         .unwrap();
     assert_eq!(index.status(), StatusCode::OK);
     assert!(index.headers().get(header::SET_COOKIE).is_none());
+    let controls = server
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/styles/controls.css")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(controls.status(), StatusCode::OK);
+    assert_eq!(
+        controls.headers().get(header::CONTENT_TYPE).unwrap(),
+        "text/css"
+    );
     let cors = server
         .oneshot(
             Request::builder()
