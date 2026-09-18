@@ -16,7 +16,7 @@ use config::Config;
 use hmac::{Hmac, Mac};
 use http::AppState;
 use sha2::Sha256;
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 use tower_http::{
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
@@ -27,16 +27,6 @@ pub struct SessionOwner(pub String);
 
 pub async fn app(config: Config) -> Router {
     let data = services::data_service::DataService::new(&config.storage_root.join(".fluida"));
-    let project_packages = config.project_root.join("packages/apps");
-    let package_sources = if project_packages.is_dir() {
-        project_packages
-    } else {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/apps")
-    };
-    services::app_registry::bootstrap_builtins(&package_sources, &config.registry_root)
-        .unwrap_or_else(|error| panic!("failed to prepare built-in application packages: {error}"));
-    services::app_registry::validate_builtin_assets(&config.registry_root, &data.apps)
-        .unwrap_or_else(|error| panic!("built-in application registry is incomplete: {error}"));
     let files = services::file_service::FileService::new(config.storage_root.clone());
     let terminal = services::terminal_service::TerminalService::new(files.clone());
     let registry = services::app_registry::AppRegistry::new(

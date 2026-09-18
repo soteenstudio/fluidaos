@@ -1,0 +1,9 @@
+{
+  "id": "calendar",
+  "name": "Calendar",
+  "icon": "▦",
+  "description": "Local calendar and agenda",
+  "version": "1.0.0",
+  "entryPoint": "app.js",
+  "capabilities": ["files:read", "files:write"]
+}

@@ -2,4 +2,3 @@ dist/
 node_modules/
 os_storage/.fluida/
 target/
-app_packages/

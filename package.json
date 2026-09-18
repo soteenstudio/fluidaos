@@ -3,14 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build:packages": "node scripts/package-apps.mjs",
-    "build": "npm run build:packages && tsc",
-    "prestart": "npm run build:packages",
-    "start": "tsc && cargo run -p fluida-server --release",
-    "predev": "npm run build:packages",
-    "dev": "tsc && cargo run -p fluida-server",
-    "test:packages": "npm run build:packages && node --test scripts/package-apps.test.mjs",
-    "test": "npm run build && npm run test:packages && cargo test --workspace"
+    "build": "tsc",
+    "start": "npm run build && cargo run -p fluida-server --release",
+    "dev": "npm run build && cargo run -p fluida-server",
+    "test": "npm run build && cargo test --workspace"
   },
   "dependencies": {},
   "devDependencies": {

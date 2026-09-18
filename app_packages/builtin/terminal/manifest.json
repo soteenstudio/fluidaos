@@ -1,0 +1,11 @@
+{
+  "id": "terminal",
+  "name": "Terminal",
+  "icon": "›_",
+  "description": "Run contained commands",
+  "version": "1.0.0",
+  "entryPoint": "app.js",
+  "capabilities": [
+    "terminal"
+  ]
+}

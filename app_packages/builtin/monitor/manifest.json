@@ -1,0 +1,11 @@
+{
+  "id": "monitor",
+  "name": "Monitor",
+  "icon": "⌁",
+  "description": "Inspect this session",
+  "version": "1.0.0",
+  "entryPoint": "app.js",
+  "capabilities": [
+    "system:read"
+  ]
+}
