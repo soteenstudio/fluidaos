@@ -1,10 +1,11 @@
 export interface DropdownOption { value:string;label:string }
 
 const escapeHtml=(value:string)=>value.replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]!));
+let dropdownId=0;
 
 export function dropdown(options:DropdownOption[],value:string,label:string,attributes=''){
- const selected=options.find(option=>option.value===value)??options[0];
- return `<div class="custom-dropdown" data-dropdown data-value="${escapeHtml(selected?.value??'')}" ${attributes}><button type="button" class="dropdown-trigger" role="combobox" aria-label="${escapeHtml(label)}" aria-haspopup="listbox" aria-expanded="false"><span>${escapeHtml(selected?.label??'')}</span><i aria-hidden="true">⌄</i></button><div class="dropdown-list" role="listbox" aria-label="${escapeHtml(label)}" hidden>${options.map(option=>`<button type="button" role="option" data-value="${escapeHtml(option.value)}" aria-selected="${option.value===selected?.value}">${escapeHtml(option.label)}</button>`).join('')}</div></div>`;
+ const selected=options.find(option=>option.value===value)??options[0],listboxId=`fluida-listbox-${++dropdownId}`;
+ return `<div class="custom-dropdown" data-dropdown data-value="${escapeHtml(selected?.value??'')}" ${attributes}><button type="button" class="dropdown-trigger" role="combobox" aria-label="${escapeHtml(label)}" aria-haspopup="listbox" aria-controls="${listboxId}" aria-expanded="false"><span>${escapeHtml(selected?.label??'')}</span><i aria-hidden="true">⌄</i></button><div id="${listboxId}" class="dropdown-list" role="listbox" aria-label="${escapeHtml(label)}" hidden>${options.map(option=>`<button type="button" role="option" data-value="${escapeHtml(option.value)}" aria-selected="${option.value===selected?.value}">${escapeHtml(option.label)}</button>`).join('')}</div></div>`;
 }
 
 export function nextListboxIndex(current:number,key:string,length:number){
@@ -38,6 +39,6 @@ export function bindDropdowns(container:ParentNode,onChange?:(root:HTMLElement,v
 export function requestText(label:string,initialValue=''){
  const previous=document.activeElement instanceof HTMLElement?document.activeElement:undefined,layer=document.createElement('div');
  layer.className='control-modal';layer.innerHTML=`<form class="control-dialog" role="dialog" aria-modal="true" aria-labelledby="control-dialog-title"><h2 id="control-dialog-title">${escapeHtml(label)}</h2><input aria-label="${escapeHtml(label)}"><div><button type="button" data-cancel>Cancel</button><button type="submit">Continue</button></div></form>`;document.body.append(layer);
- const form=layer.querySelector<HTMLFormElement>('form')!,input=layer.querySelector<HTMLInputElement>('input')!;input.value=initialValue;
- return new Promise<string|null>(resolve=>{const finish=(value:string|null)=>{document.removeEventListener('keydown',keydown,true);layer.remove();previous?.focus();resolve(value);},keydown=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();finish(null);}};document.addEventListener('keydown',keydown,true);layer.onpointerdown=event=>{if(event.target===layer)finish(null);};form.onsubmit=event=>{event.preventDefault();finish(input.value);};layer.querySelector<HTMLButtonElement>('[data-cancel]')!.onclick=()=>finish(null);input.focus();input.select();});
+ const form=layer.querySelector<HTMLFormElement>('form')!,input=layer.querySelector<HTMLInputElement>('input')!,cancel=layer.querySelector<HTMLButtonElement>('[data-cancel]')!,continueButton=layer.querySelector<HTMLButtonElement>('[type="submit"]')!,focusable=[input,cancel,continueButton];input.value=initialValue;
+ return new Promise<string|null>(resolve=>{const finish=(value:string|null)=>{document.removeEventListener('keydown',keydown,true);layer.remove();previous?.focus();resolve(value);},keydown=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();finish(null);}else if(event.key==='Tab'){const index=focusable.indexOf(document.activeElement as HTMLInputElement|HTMLButtonElement);if(index<0||(!event.shiftKey&&index===focusable.length-1)||(event.shiftKey&&index===0)){event.preventDefault();focusable[event.shiftKey?focusable.length-1:0].focus();}}};document.addEventListener('keydown',keydown,true);layer.onpointerdown=event=>{if(event.target===layer)finish(null);};form.onsubmit=event=>{event.preventDefault();finish(input.value);};cancel.onclick=()=>finish(null);input.focus();input.select();});
 }
