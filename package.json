@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build:packages": "node scripts/package-apps.mjs",
+    "build": "npm run build:packages && tsc",
     "start": "npm run build && cargo run -p fluida-server --release",
     "dev": "npm run build && cargo run -p fluida-server",
     "test": "npm run build && cargo test --workspace"

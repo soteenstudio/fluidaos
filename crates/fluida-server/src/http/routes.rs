@@ -79,6 +79,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/apps/all", get(apps_all))
         .route("/apps/install", post(app_install))
         .route("/apps/{id}", patch(app_enable).delete(app_uninstall))
+        .route("/apps/{id}/assets/{*path}", get(app_asset))
         .route("/shell/session", get(session_get).put(session_put))
         .route("/settings", get(settings_get).put(settings_put))
         .route("/settings/reset", post(settings_reset))
@@ -294,6 +295,35 @@ async fn app_uninstall(
 ) -> Result<Json<Value>> {
     s.registry.uninstall(&id).await?;
     Ok(ok(Value::Null))
+}
+async fn app_asset(
+    State(s): State<Arc<AppState>>,
+    Path((id, path)): Path<(String, String)>,
+) -> Result<Response> {
+    let file = s.registry.asset(&id, &path).await?;
+    let content_type = mime_guess::from_path(&file)
+        .first_or_octet_stream()
+        .to_string();
+    let body = Body::from(tokio::fs::read(file).await?);
+    Ok((
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, content_type),
+            (header::X_CONTENT_TYPE_OPTIONS, "nosniff".into()),
+            (header::REFERRER_POLICY, "no-referrer".into()),
+            (
+                header::CONTENT_SECURITY_POLICY,
+                "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-scripts"
+                    .into(),
+            ),
+            (
+                axum::http::HeaderName::from_static("cross-origin-resource-policy"),
+                "same-origin".into(),
+            ),
+        ],
+        body,
+    )
+        .into_response())
 }
 async fn session_get(State(s): State<Arc<AppState>>) -> Result<Json<Value>> {
     Ok(ok(s.data.session.read().await?))

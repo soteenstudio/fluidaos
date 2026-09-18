@@ -1,0 +1,9 @@
+{
+  "id": "app-center",
+  "name": "App Center",
+  "icon": "⬡",
+  "description": "Manage installed applications",
+  "version": "1.0.0",
+  "entryPoint": "app.js",
+  "capabilities": []
+}

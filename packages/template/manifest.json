@@ -1,0 +1,9 @@
+{
+  "id": "example-app",
+  "name": "Example App",
+  "icon": "□",
+  "description": "A FluidaOS application package",
+  "version": "1.0.0",
+  "entryPoint": "app.js",
+  "capabilities": []
+}
