@@ -5,5 +5,5 @@
   "description": "Manage installed applications",
   "version": "1.0.0",
   "entryPoint": "app.js",
-  "capabilities": []
+  "capabilities": ["files:read", "files:write"]
 }

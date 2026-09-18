@@ -6,6 +6,7 @@
   "version": "1.0.0",
   "entryPoint": "app.js",
   "capabilities": [
-    "files:read"
+    "files:read",
+    "files:write"
   ]
 }

@@ -117,6 +117,69 @@ fn validate_manifest(value: &[u8]) -> Result<Manifest, ApiError> {
     Ok(manifest)
 }
 
+/// Materialize the source-controlled built-in packages in the registry used by
+/// the asset route. This deliberately copies unpacked assets: ZIP archives are
+/// distribution artifacts, while the registry needs random access to files.
+pub fn bootstrap_builtins(source: &Path, registry: &Path) -> std::io::Result<()> {
+    let destination = registry.join("builtin");
+    fs::create_dir_all(&destination)?;
+    for entry in fs::read_dir(source).map_err(|error| {
+        std::io::Error::new(
+            error.kind(),
+            format!(
+                "cannot read built-in package sources at {}: {error}",
+                source.display()
+            ),
+        )
+    })? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let id = entry.file_name();
+        for required in REQUIRED_FILES {
+            let asset = entry.path().join(required);
+            if !asset.is_file() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "built-in package {} is missing {required}",
+                        id.to_string_lossy()
+                    ),
+                ));
+            }
+        }
+        let target = destination.join(&id);
+        fs::create_dir_all(&target)?;
+        for required in REQUIRED_FILES {
+            fs::copy(entry.path().join(required), target.join(required))?;
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_builtin_assets(registry: &Path, apps: &[AppDefinition]) -> std::io::Result<()> {
+    for app in apps {
+        for required in REQUIRED_FILES {
+            if !registry
+                .join("builtin")
+                .join(&app.id)
+                .join(required)
+                .is_file()
+            {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!(
+                        "built-in package {} is unavailable: missing {required}",
+                        app.id
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 impl AppRegistry {
     pub fn new(root: PathBuf, data: &Path, apps: &[AppDefinition]) -> Self {
         let installed = root.join("installed");
@@ -132,10 +195,13 @@ impl AppRegistry {
                     entry_point: "app.js".into(),
                     capabilities: match app.id.as_str() {
                         "files" | "editor" => vec!["files:read".into(), "files:write".into()],
-                        "notes" => vec!["files:read".into(), "files:write".into()],
+                        "notes" | "clock" | "calendar" | "app-center" => {
+                            vec!["files:read".into(), "files:write".into()]
+                        }
                         "terminal" => vec!["terminal".into()],
                         "monitor" | "settings" => vec!["system:read".into()],
-                        "photos" | "archive" => vec!["files:read".into()],
+                        "photos" => vec!["files:read".into()],
+                        "archive" => vec!["files:read".into(), "files:write".into()],
                         _ => vec![],
                     },
                 },
@@ -503,5 +569,63 @@ mod tests {
             .asset("contained-app", "../manifest.json")
             .await
             .is_err());
+    }
+
+    #[test]
+    fn bootstraps_complete_builtins_and_rejects_incomplete_sources() {
+        let root = TempDir::new().unwrap();
+        let source = root.path().join("source");
+        let package = source.join("calculator");
+        fs::create_dir_all(&package).unwrap();
+        for (name, contents) in [
+            ("manifest.json", manifest("calculator", "app.js")),
+            ("index.html", b"<main id=\"app\"></main>".to_vec()),
+            (
+                "app.js",
+                b"document.querySelector('#app').textContent='Calculator'".to_vec(),
+            ),
+        ] {
+            fs::write(package.join(name), contents).unwrap();
+        }
+        let registry = root.path().join("registry");
+        bootstrap_builtins(&source, &registry).unwrap();
+        for required in REQUIRED_FILES {
+            assert!(registry.join("builtin/calculator").join(required).is_file());
+        }
+        fs::remove_file(package.join("app.js")).unwrap();
+        assert!(bootstrap_builtins(&source, &registry).is_err());
+    }
+
+    #[tokio::test]
+    async fn resolves_built_in_application_assets() {
+        let root = TempDir::new().unwrap();
+        let package = root.path().join("packages/builtin/calculator");
+        fs::create_dir_all(&package).unwrap();
+        fs::write(package.join("index.html"), "<main id=\"app\"></main>").unwrap();
+        fs::write(
+            package.join("app.js"),
+            "document.querySelector('#app').textContent='Calculator'",
+        )
+        .unwrap();
+        let apps = vec![AppDefinition {
+            id: "calculator".into(),
+            name: "Calculator".into(),
+            icon: "+".into(),
+            description: "Calculate".into(),
+        }];
+        let registry = AppRegistry::new(
+            root.path().join("packages"),
+            &root.path().join("data"),
+            &apps,
+        );
+        assert!(registry
+            .asset("calculator", "index.html")
+            .await
+            .unwrap()
+            .is_file());
+        let script =
+            fs::read_to_string(registry.asset("calculator", "app.js").await.unwrap()).unwrap();
+        assert!(script.contains("Calculator"));
+        assert!(!script.contains("Running in an isolated FluidaOS package"));
     }
 }
