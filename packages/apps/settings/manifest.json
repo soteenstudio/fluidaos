@@ -1,0 +1,11 @@
+{
+  "id": "settings",
+  "name": "Settings",
+  "icon": "⚙",
+  "description": "Personalize FluidaOS",
+  "version": "1.0.0",
+  "entryPoint": "app.js",
+  "capabilities": [
+    "system:read"
+  ]
+}

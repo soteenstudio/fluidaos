@@ -1,0 +1,11 @@
+{
+  "id": "archive",
+  "name": "Archive Manager",
+  "icon": "▣",
+  "description": "Organize safe archive records",
+  "version": "1.0.0",
+  "entryPoint": "app.js",
+  "capabilities": [
+    "files:read"
+  ]
+}

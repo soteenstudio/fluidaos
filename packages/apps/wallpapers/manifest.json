@@ -1,0 +1,9 @@
+{
+  "id": "wallpapers",
+  "name": "Wallpapers",
+  "icon": "◉",
+  "description": "Choose a desktop background",
+  "version": "1.0.0",
+  "entryPoint": "app.js",
+  "capabilities": []
+}
